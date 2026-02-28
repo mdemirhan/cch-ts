@@ -34,7 +34,7 @@ describe("parseSession python fixtures", () => {
 
     expect(parsed.diagnostics).toEqual([]);
     expect(new Set(parsed.messages.map((message) => message.category))).toEqual(
-      new Set(["user", "assistant", "thinking", "tool_use", "tool_result", "system"]),
+      new Set(["user", "assistant", "thinking", "tool_edit", "tool_result", "system"]),
     );
 
     expect(parsed.messages.some((message) => message.id === "c-a-1")).toBe(true);
@@ -70,11 +70,26 @@ describe("parseSession python fixtures", () => {
 
     expect(parsed.diagnostics).toEqual([]);
     expect(new Set(parsed.messages.map((message) => message.category))).toEqual(
-      new Set(["user", "assistant", "thinking", "tool_use", "tool_result"]),
+      new Set(["user", "assistant", "thinking", "tool_edit", "tool_result"]),
     );
 
     expect(parsed.messages.some((message) => message.id === "codex-msg-user-1")).toBe(true);
     expect(parsed.messages.some((message) => message.id === "codex-msg-assistant-1")).toBe(true);
+    expect(
+      parsed.messages.some(
+        (message) =>
+          message.id === "codex-custom-tool-1:custom_tool_call" &&
+          message.category === "tool_edit" &&
+          message.content.includes("apply_patch"),
+      ),
+    ).toBe(true);
+    expect(
+      parsed.messages.some(
+        (message) =>
+          message.id === "codex-custom-tool-1:custom_tool_call_output" &&
+          message.category === "tool_result",
+      ),
+    ).toBe(true);
   });
 
   it("parses gemini fixture thoughts split with first-message token usage", () => {

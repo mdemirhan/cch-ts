@@ -191,7 +191,9 @@ function parseCodexPayload(args: {
     const payloadType = lowerString(payloadRecord.type);
     const createdAt = extractEventTimestamp(eventRecord);
     const tokenUsage = extractTokenUsage(payloadRecord);
-    const baseId = readString(payloadRecord.id);
+    const callId = readString(payloadRecord.call_id);
+    const baseId =
+      readString(payloadRecord.id) ?? (callId && payloadType ? `${callId}:${payloadType}` : callId);
     const segments = parseCodexSegments(payloadType, payloadRecord, sessionId, sequence);
     const sequenceRef = { value: sequence };
     if (segments.length === 0) {
@@ -405,7 +407,29 @@ function parseCodexSegments(
     ];
   }
 
+  if (payloadType === "custom_tool_call") {
+    const toolName = readString(payloadRecord.name) ?? "tool";
+    const callId = readString(payloadRecord.call_id) ?? `${sessionId}:tool:${sequence}`;
+    const input = parseMaybeJson(safeJsonString(payloadRecord.input));
+    return [
+      {
+        category: "tool_use",
+        content: serializeUnknown({
+          type: "tool_use",
+          id: callId,
+          name: toolName,
+          input,
+        }),
+      },
+    ];
+  }
+
   if (payloadType === "function_call_output") {
+    const output = extractCodexFunctionOutput(payloadRecord.output);
+    return output.length > 0 ? [{ category: "tool_result", content: output }] : [];
+  }
+
+  if (payloadType === "custom_tool_call_output") {
     const output = extractCodexFunctionOutput(payloadRecord.output);
     return output.length > 0 ? [{ category: "tool_result", content: output }] : [];
   }
@@ -707,10 +731,12 @@ function pushSplitMessages(args: {
 
   for (const [index, segment] of segments.entries()) {
     const id = index === 0 ? canonicalBase : `${canonicalBase}#${index + 1}`;
+    const category =
+      segment.category === "tool_use" ? inferToolUseCategory(segment.content) : segment.category;
     output.push({
       id,
       createdAt,
-      category: segment.category,
+      category,
       content: segment.content,
       tokenInput: index === 0 ? tokenUsage.input : null,
       tokenOutput: index === 0 ? tokenUsage.output : null,
@@ -844,4 +870,67 @@ function parseMaybeJson(value: string): unknown {
   } catch {
     return value;
   }
+}
+
+function inferToolUseCategory(content: string): MessageCategory {
+  const parsed = parseMaybeJson(content);
+  const record = asRecord(parsed);
+  if (!record) {
+    return looksLikeEditOperation(content) ? "tool_edit" : "tool_use";
+  }
+
+  const candidates: string[] = [];
+  const pushValue = (value: unknown) => {
+    const normalized = readString(value)?.trim().toLowerCase();
+    if (normalized && normalized.length > 0) {
+      candidates.push(normalized);
+    }
+  };
+
+  pushValue(record.type);
+  pushValue(record.name);
+  pushValue(record.tool);
+  pushValue(record.tool_name);
+  pushValue(record.operation);
+
+  const functionCall = asRecord(record.functionCall);
+  if (functionCall) {
+    pushValue(functionCall.name);
+    pushValue(functionCall.tool_name);
+    pushValue(functionCall.operation);
+  }
+
+  const input = asRecord(record.input);
+  if (input) {
+    pushValue(input.operation);
+    pushValue(input.mode);
+    pushValue(input.action);
+    pushValue(input.tool);
+  }
+
+  const joined = candidates.join(" ");
+  return looksLikeEditOperation(joined) ? "tool_edit" : "tool_use";
+}
+
+function looksLikeEditOperation(value: string): boolean {
+  const normalized = value.toLowerCase();
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  const editHints = [
+    "edit",
+    "write",
+    "rewrite",
+    "replace",
+    "apply_patch",
+    "patch",
+    "multi_edit",
+    "create_file",
+    "update_file",
+    "delete_file",
+    "insert",
+    "str_replace",
+  ];
+  return editHints.some((hint) => normalized.includes(hint));
 }

@@ -5,6 +5,7 @@ type SessionSummaryRow = {
   project_id: string;
   provider: "claude" | "codex" | "gemini";
   file_path: string;
+  title: string;
   model_names: string;
   started_at: string | null;
   ended_at: string | null;
@@ -18,6 +19,7 @@ type SessionSummaryRow = {
 
 const CATEGORY_ALIASES: Record<string, string> = {
   tool_call: "tool_use",
+  "tool-edit": "tool_edit",
 };
 
 export function listProjects(
@@ -25,6 +27,10 @@ export function listProjects(
   request: IpcRequest<"projects:list">,
 ): IpcResponse<"projects:list"> {
   return withDatabase(dbPath, (db) => {
+    if (request.providers && request.providers.length === 0) {
+      return { projects: [] };
+    }
+
     const conditions: string[] = [];
     const params: Array<string> = [];
 
@@ -85,7 +91,31 @@ export function listSessions(
     const rows = request.projectId
       ? (db
           .prepare(
-            `SELECT id, project_id, provider, file_path, model_names, started_at, ended_at, duration_ms, git_branch, cwd, message_count, token_input_total, token_output_total
+            `SELECT
+               id,
+               project_id,
+               provider,
+               file_path,
+               COALESCE(
+                 (
+                   SELECT m.content
+                   FROM messages m
+                   WHERE m.session_id = sessions.id
+                   AND m.category = 'user'
+                   ORDER BY m.created_at, m.id
+                   LIMIT 1
+                 ),
+                 ''
+               ) as title,
+               model_names,
+               started_at,
+               ended_at,
+               duration_ms,
+               git_branch,
+               cwd,
+               message_count,
+               token_input_total,
+               token_output_total
              FROM sessions
              WHERE project_id = ?
              ORDER BY COALESCE(ended_at, started_at) DESC, id DESC`,
@@ -93,7 +123,31 @@ export function listSessions(
           .all(request.projectId) as SessionSummaryRow[])
       : (db
           .prepare(
-            `SELECT id, project_id, provider, file_path, model_names, started_at, ended_at, duration_ms, git_branch, cwd, message_count, token_input_total, token_output_total
+            `SELECT
+               id,
+               project_id,
+               provider,
+               file_path,
+               COALESCE(
+                 (
+                   SELECT m.content
+                   FROM messages m
+                   WHERE m.session_id = sessions.id
+                   AND m.category = 'user'
+                   ORDER BY m.created_at, m.id
+                   LIMIT 1
+                 ),
+                 ''
+               ) as title,
+               model_names,
+               started_at,
+               ended_at,
+               duration_ms,
+               git_branch,
+               cwd,
+               message_count,
+               token_input_total,
+               token_output_total
              FROM sessions
              ORDER BY COALESCE(ended_at, started_at) DESC, id DESC`,
           )
@@ -110,7 +164,31 @@ export function getSessionDetail(
   return withDatabase(dbPath, (db) => {
     const sessionRow = db
       .prepare(
-        `SELECT id, project_id, provider, file_path, model_names, started_at, ended_at, duration_ms, git_branch, cwd, message_count, token_input_total, token_output_total
+        `SELECT
+           id,
+           project_id,
+           provider,
+           file_path,
+           COALESCE(
+             (
+               SELECT m.content
+               FROM messages m
+               WHERE m.session_id = sessions.id
+               AND m.category = 'user'
+               ORDER BY m.created_at, m.id
+               LIMIT 1
+             ),
+             ''
+           ) as title,
+           model_names,
+           started_at,
+           ended_at,
+           duration_ms,
+           git_branch,
+           cwd,
+           message_count,
+           token_input_total,
+           token_output_total
          FROM sessions
          WHERE id = ?`,
       )
@@ -138,7 +216,7 @@ export function getSessionDetail(
       sessionId: request.sessionId,
       query: request.query,
     };
-    if (request.categories && request.categories.length > 0) {
+    if (request.categories !== undefined) {
       messageFilters.categories = request.categories;
     }
 
@@ -294,10 +372,14 @@ function buildMessageFilters(args: {
   const conditions = ["m.session_id = ?"];
   const params = [args.sessionId];
 
-  const categories = normalizeCategories(args.categories ?? []);
-  if (categories.length > 0) {
-    conditions.push(`m.category IN (${categories.map(() => "?").join(",")})`);
-    params.push(...categories);
+  if (args.categories !== undefined) {
+    const categories = normalizeCategories(args.categories);
+    if (categories.length > 0) {
+      conditions.push(`m.category IN (${categories.map(() => "?").join(",")})`);
+      params.push(...categories);
+    } else {
+      conditions.push("1 = 0");
+    }
   }
 
   const query = args.query.trim().toLowerCase();
@@ -321,7 +403,7 @@ function normalizeCategories(values: string[]): string[] {
 
 function normalizeCategory(
   value: string,
-): "user" | "assistant" | "tool_use" | "tool_result" | "thinking" | "system" {
+): "user" | "assistant" | "tool_use" | "tool_edit" | "tool_result" | "thinking" | "system" {
   const normalized = value.trim().toLowerCase();
   const alias = CATEGORY_ALIASES[normalized];
   if (alias) {
@@ -337,6 +419,9 @@ function normalizeCategory(
   if (normalized === "tool_use") {
     return "tool_use";
   }
+  if (normalized === "tool_edit") {
+    return "tool_edit";
+  }
   if (normalized === "tool_result") {
     return "tool_result";
   }
@@ -351,6 +436,7 @@ function emptyCategoryCounts(): IpcResponse<"search:query">["categoryCounts"] {
     user: 0,
     assistant: 0,
     tool_use: 0,
+    tool_edit: 0,
     tool_result: 0,
     thinking: 0,
     system: 0,
@@ -365,6 +451,7 @@ function mapSessionSummaryRow(
     projectId: row.project_id,
     provider: row.provider,
     filePath: row.file_path,
+    title: row.title,
     modelNames: row.model_names,
     startedAt: row.started_at,
     endedAt: row.ended_at,

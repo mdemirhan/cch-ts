@@ -11,6 +11,7 @@ import { WorkerIndexingRunner } from "./worker/indexingRunner";
 
 export type BootstrapOptions = {
   dbPath?: string;
+  runStartupIndexing?: boolean;
 };
 
 export type BootstrapResult = {
@@ -60,6 +61,12 @@ export async function bootstrapMainProcess(
       };
     },
   });
+
+  if (options.runStartupIndexing ?? true) {
+    void indexingRunner.enqueue({ force: false }).catch((error: unknown) => {
+      console.error("[cch] startup incremental indexing failed", error);
+    });
+  }
 
   return {
     schemaVersion: dbBootstrap.schemaVersion ?? DATABASE_SCHEMA_VERSION,

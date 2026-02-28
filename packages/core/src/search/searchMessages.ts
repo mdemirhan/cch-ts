@@ -5,6 +5,7 @@ const CATEGORY_KEYS = [
   "user",
   "assistant",
   "tool_use",
+  "tool_edit",
   "tool_result",
   "thinking",
   "system",
@@ -12,6 +13,7 @@ const CATEGORY_KEYS = [
 
 const CATEGORY_ALIASES: Record<string, MessageCategory> = {
   tool_call: "tool_use",
+  "tool-edit": "tool_edit",
 };
 
 export type SearchMessagesInput = {
@@ -29,6 +31,7 @@ export type SearchMessageResult = {
   messageId: string;
   messageSourceId: string;
   sessionId: string;
+  projectId: string;
   provider: Provider;
   category: MessageCategory;
   createdAt: string;
@@ -104,6 +107,7 @@ export function searchMessages(
          m.id as message_id,
          m.source_id as message_source_id,
          m.session_id as session_id,
+         s.project_id as project_id,
          s.provider as provider,
          m.category as category,
          m.created_at as created_at,
@@ -120,6 +124,7 @@ export function searchMessages(
     message_id: string;
     message_source_id: string;
     session_id: string;
+    project_id: string;
     provider: string;
     category: string;
     created_at: string;
@@ -132,6 +137,7 @@ export function searchMessages(
     messageId: row.message_id,
     messageSourceId: row.message_source_id,
     sessionId: row.session_id,
+    projectId: row.project_id,
     provider: normalizeProvider(row.provider),
     category: normalizeCategory(row.category),
     createdAt: row.created_at,
@@ -240,6 +246,9 @@ function normalizeCategory(value: string): MessageCategory {
   if (normalized === "tool_use") {
     return "tool_use";
   }
+  if (normalized === "tool_edit") {
+    return "tool_edit";
+  }
   if (normalized === "tool_result") {
     return "tool_result";
   }
@@ -254,6 +263,7 @@ function makeEmptyCategoryCounts(): Record<MessageCategory, number> {
     user: 0,
     assistant: 0,
     tool_use: 0,
+    tool_edit: 0,
     tool_result: 0,
     thinking: 0,
     system: 0,

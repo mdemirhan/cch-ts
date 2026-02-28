@@ -117,6 +117,9 @@ describe("queryService", () => {
     expect(claudeOnly.projects.length).toBe(1);
     expect(claudeOnly.projects[0]?.provider).toBe("claude");
 
+    const noProvidersSelected = listProjects(dbPath, { providers: [], query: "" });
+    expect(noProvidersSelected.projects).toEqual([]);
+
     const textFiltered = listProjects(dbPath, { providers: undefined, query: "workspace/codex" });
     expect(textFiltered.projects.length).toBe(1);
 
@@ -175,6 +178,18 @@ describe("queryService", () => {
     expect(filtered.totalCount).toBe(1);
     expect(filtered.categoryCounts.tool_use).toBeGreaterThanOrEqual(1);
     expect(filtered.messages[0]?.category).toBe("tool_use");
+
+    const noCategoriesSelected = getSessionDetail(dbPath, {
+      sessionId: claudeSessionIdRow.id,
+      page: 0,
+      pageSize: 100,
+      categories: [],
+      query: "",
+      focusSourceId: undefined,
+    });
+    expect(noCategoriesSelected.totalCount).toBe(0);
+    expect(noCategoriesSelected.messages).toEqual([]);
+    expect(noCategoriesSelected.categoryCounts.user).toBeGreaterThanOrEqual(1);
 
     if (!focusSourceRow) {
       cleanup();

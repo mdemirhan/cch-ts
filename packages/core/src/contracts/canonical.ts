@@ -7,6 +7,7 @@ export const messageCategorySchema = z.enum([
   "user",
   "assistant",
   "tool_use",
+  "tool_edit",
   "tool_result",
   "thinking",
   "system",

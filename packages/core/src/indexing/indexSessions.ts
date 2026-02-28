@@ -276,7 +276,7 @@ export function runIncrementalIndexing(config: IndexingConfig): IndexingResult {
             message.content,
           );
 
-          if (message.category !== "tool_use") {
+          if (message.category !== "tool_use" && message.category !== "tool_edit") {
             continue;
           }
 

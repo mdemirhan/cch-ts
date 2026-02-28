@@ -81,7 +81,7 @@
       {
         "sessionId": "gemini-session-1",
         "provider": "gemini",
-        "category": "tool_use",
+        "category": "tool_edit",
         "content": "{\"name\":\"edit_file\",\"args\":{\"path\":\"src/app.ts\"}}",
         "createdAt": "2026-02-27T12:00:10.000Z",
         "tokenInput": null,
