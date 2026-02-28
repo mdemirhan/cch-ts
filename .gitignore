@@ -1,6 +1,8 @@
 node_modules
 bun.lock
 .DS_Store
+.vscode/
+.idea/
 coverage
 .vitest
 playwright-report
@@ -8,6 +10,11 @@ test-results
 dist
 apps/desktop/dist
 apps/desktop/.home/
+apps/desktop/.electron-gyp/
+.env
+.env.*
+!.env.example
+*.log
 *.db
 *.db-shm
 *.db-wal

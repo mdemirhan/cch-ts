@@ -53,6 +53,13 @@ describe("registerIpcHandlers", () => {
           ok: true,
           error: null,
         }),
+        "ui:getState": () => ({
+          projectPaneWidth: null,
+          sessionPaneWidth: null,
+        }),
+        "ui:setState": () => ({
+          ok: true,
+        }),
       },
     );
 

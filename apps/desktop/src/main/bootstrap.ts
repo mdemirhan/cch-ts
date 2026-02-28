@@ -7,11 +7,13 @@ import { DATABASE_SCHEMA_VERSION, initializeDatabase } from "@cch/core";
 
 import { getSessionDetail, listProjects, listSessions, runSearchQuery } from "./data/queryService";
 import { registerIpcHandlers } from "./ipc/registerIpcHandlers";
+import type { AppStateStore } from "./state/appStateStore";
 import { WorkerIndexingRunner } from "./worker/indexingRunner";
 
 export type BootstrapOptions = {
   dbPath?: string;
   runStartupIndexing?: boolean;
+  appStateStore?: AppStateStore;
 };
 
 export type BootstrapResult = {
@@ -59,6 +61,20 @@ export async function bootstrapMainProcess(
         ok: error.length === 0,
         error: error.length > 0 ? error : null,
       };
+    },
+    "ui:getState": () => {
+      const paneState = options.appStateStore?.getPaneState();
+      return {
+        projectPaneWidth: paneState?.projectPaneWidth ?? null,
+        sessionPaneWidth: paneState?.sessionPaneWidth ?? null,
+      };
+    },
+    "ui:setState": (payload) => {
+      options.appStateStore?.setPaneState({
+        projectPaneWidth: payload.projectPaneWidth,
+        sessionPaneWidth: payload.sessionPaneWidth,
+      });
+      return { ok: true };
     },
   });
 

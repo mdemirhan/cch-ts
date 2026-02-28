@@ -1,0 +1,185 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
+export type PaneState = {
+  projectPaneWidth: number;
+  sessionPaneWidth: number;
+};
+
+export type WindowState = {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+  isMaximized: boolean;
+};
+
+type AppState = {
+  pane?: PaneState;
+  window?: WindowState;
+};
+
+const PANE_MIN = 120;
+const PANE_MAX = 2000;
+const WINDOW_MIN = 320;
+const WINDOW_MAX = 6000;
+
+export class AppStateStore {
+  private readonly filePath: string;
+  private state: AppState;
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(filePath: string) {
+    this.filePath = filePath;
+    this.state = readState(filePath);
+  }
+
+  getPaneState(): PaneState | null {
+    return this.state.pane ?? null;
+  }
+
+  setPaneState(value: PaneState): void {
+    const pane = sanitizePaneState(value);
+    if (!pane) {
+      return;
+    }
+    this.state = {
+      ...this.state,
+      pane,
+    };
+    this.schedulePersist();
+  }
+
+  getWindowState(): WindowState | null {
+    return this.state.window ?? null;
+  }
+
+  setWindowState(value: WindowState): void {
+    const window = sanitizeWindowState(value);
+    if (!window) {
+      return;
+    }
+    this.state = {
+      ...this.state,
+      window,
+    };
+    this.schedulePersist();
+  }
+
+  flush(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    persistState(this.filePath, this.state);
+  }
+
+  private schedulePersist(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+    }
+
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      persistState(this.filePath, this.state);
+    }, 150);
+  }
+}
+
+export function createAppStateStore(filePath: string): AppStateStore {
+  return new AppStateStore(filePath);
+}
+
+function readState(filePath: string): AppState {
+  if (!existsSync(filePath)) {
+    return {};
+  }
+
+  try {
+    const raw = readFileSync(filePath, "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const record = parsed as Record<string, unknown>;
+    const pane = sanitizePaneState(record.pane);
+    const window = sanitizeWindowState(record.window);
+    return {
+      ...(pane ? { pane } : {}),
+      ...(window ? { window } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function persistState(filePath: string, state: AppState): void {
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  } catch (error) {
+    console.error("[cch] failed persisting app state", error);
+  }
+}
+
+function sanitizePaneState(value: unknown): PaneState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const projectPaneWidth = sanitizeInt(record.projectPaneWidth, PANE_MIN, PANE_MAX);
+  const sessionPaneWidth = sanitizeInt(record.sessionPaneWidth, PANE_MIN, PANE_MAX);
+  if (projectPaneWidth === null || sessionPaneWidth === null) {
+    return null;
+  }
+
+  return {
+    projectPaneWidth,
+    sessionPaneWidth,
+  };
+}
+
+function sanitizeWindowState(value: unknown): WindowState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const width = sanitizeInt(record.width, WINDOW_MIN, WINDOW_MAX);
+  const height = sanitizeInt(record.height, WINDOW_MIN, WINDOW_MAX);
+  if (width === null || height === null) {
+    return null;
+  }
+
+  const x = sanitizeOptionalInt(record.x, -20000, 20000);
+  const y = sanitizeOptionalInt(record.y, -20000, 20000);
+  const isMaximized = record.isMaximized === true;
+
+  return {
+    width,
+    height,
+    ...(x === null ? {} : { x }),
+    ...(y === null ? {} : { y }),
+    isMaximized,
+  };
+}
+
+function sanitizeInt(value: unknown, min: number, max: number): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  const rounded = Math.round(value);
+  if (rounded < min || rounded > max) {
+    return null;
+  }
+  return rounded;
+}
+
+function sanitizeOptionalInt(value: unknown, min: number, max: number): number | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return sanitizeInt(value, min, max);
+}

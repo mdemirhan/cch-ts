@@ -104,6 +104,7 @@ export function App() {
 
   const [projectPaneWidth, setProjectPaneWidth] = useState(300);
   const [sessionPaneWidth, setSessionPaneWidth] = useState(320);
+  const [paneStateHydrated, setPaneStateHydrated] = useState(false);
   const resizeState = useRef<{
     pane: "project" | "session";
     startX: number;
@@ -208,6 +209,59 @@ export function App() {
     });
     setSearchResponse(response);
   }, [searchCategories, searchProjectId, searchProjectQuery, searchProviders, searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.cch
+      .invoke("ui:getState", {})
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (response.projectPaneWidth !== null) {
+          setProjectPaneWidth(clamp(response.projectPaneWidth, 230, 520));
+        }
+        if (response.sessionPaneWidth !== null) {
+          setSessionPaneWidth(clamp(response.sessionPaneWidth, 250, 620));
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setStatusText(`Failed loading UI layout state: ${toErrorMessage(error)}`);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPaneStateHydrated(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!paneStateHydrated) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void window.cch
+        .invoke("ui:setState", {
+          projectPaneWidth: Math.round(projectPaneWidth),
+          sessionPaneWidth: Math.round(sessionPaneWidth),
+        })
+        .catch((error: unknown) => {
+          setStatusText(`Failed saving UI layout state: ${toErrorMessage(error)}`);
+        });
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [paneStateHydrated, projectPaneWidth, sessionPaneWidth]);
 
   useEffect(() => {
     let cancelled = false;

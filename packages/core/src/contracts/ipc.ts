@@ -63,6 +63,11 @@ const categoryCountsSchema = z.object({
   system: z.number().int().nonnegative(),
 });
 
+const paneStateSchema = z.object({
+  projectPaneWidth: z.number().int().positive().nullable(),
+  sessionPaneWidth: z.number().int().positive().nullable(),
+});
+
 export const ipcContractSchemas = {
   "app:getHealth": {
     request: z.object({}),
@@ -145,6 +150,19 @@ export const ipcContractSchemas = {
     response: z.object({
       ok: z.boolean(),
       error: z.string().nullable(),
+    }),
+  },
+  "ui:getState": {
+    request: z.object({}),
+    response: paneStateSchema,
+  },
+  "ui:setState": {
+    request: z.object({
+      projectPaneWidth: z.number().int().positive(),
+      sessionPaneWidth: z.number().int().positive(),
+    }),
+    response: z.object({
+      ok: z.literal(true),
     }),
   },
 } as const;

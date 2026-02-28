@@ -2,15 +2,18 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { BrowserWindow, app } from "electron";
+import { BrowserWindow, type BrowserWindowConstructorOptions, app } from "electron";
 
 import { bootstrapMainProcess } from "./bootstrap";
+import { type AppStateStore, createAppStateStore } from "./state/appStateStore";
 
-function createWindow(): BrowserWindow {
+function createWindow(appStateStore: AppStateStore): BrowserWindow {
   const preloadPath = resolvePreloadPath();
-  const mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+  const persistedWindowState = appStateStore.getWindowState();
+
+  const windowOptions = {
+    width: persistedWindowState?.width ?? 1400,
+    height: persistedWindowState?.height ?? 900,
     minWidth: 1120,
     minHeight: 680,
     webPreferences: {
@@ -18,7 +21,11 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
     },
-  });
+    ...(persistedWindowState?.x !== undefined ? { x: persistedWindowState.x } : {}),
+    ...(persistedWindowState?.y !== undefined ? { y: persistedWindowState.y } : {}),
+  } satisfies BrowserWindowConstructorOptions;
+
+  const mainWindow = new BrowserWindow(windowOptions);
 
   const debugRenderer = process.env.CCH_DEBUG_RENDERER === "1";
   if (debugRenderer) {
@@ -62,22 +69,48 @@ function createWindow(): BrowserWindow {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }
 
+  const persistWindowState = () => {
+    const bounds = mainWindow.getBounds();
+    appStateStore.setWindowState({
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
+      isMaximized: mainWindow.isMaximized(),
+    });
+  };
+
+  mainWindow.on("resize", persistWindowState);
+  mainWindow.on("move", persistWindowState);
+  mainWindow.on("maximize", persistWindowState);
+  mainWindow.on("unmaximize", persistWindowState);
+  mainWindow.on("close", persistWindowState);
+
+  if (persistedWindowState?.isMaximized) {
+    mainWindow.maximize();
+  }
+
   return mainWindow;
 }
 
 app.whenReady().then(async () => {
+  const appStateStore = createAppStateStore(join(app.getPath("userData"), "ui-state.json"));
   try {
-    await bootstrapMainProcess();
-    createWindow();
+    await bootstrapMainProcess({ appStateStore });
+    createWindow(appStateStore);
   } catch (error) {
     console.error("[cch] bootstrap failure", error);
     app.exit(1);
     return;
   }
 
+  app.on("before-quit", () => {
+    appStateStore.flush();
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      createWindow(appStateStore);
     }
   });
 });
