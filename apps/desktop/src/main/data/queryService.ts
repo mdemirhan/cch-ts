@@ -246,15 +246,24 @@ export function getSessionDetail(
     }
 
     let focusIndex: number | null = null;
-    if (request.focusSourceId) {
-      const focusTarget = db
-        .prepare("SELECT id, created_at FROM messages WHERE session_id = ? AND source_id = ?")
-        .get(request.sessionId, request.focusSourceId) as
-        | {
-            id: string;
-            created_at: string;
-          }
-        | undefined;
+    if (request.focusMessageId || request.focusSourceId) {
+      const focusTarget = request.focusMessageId
+        ? ((db
+            .prepare("SELECT id, created_at FROM messages WHERE session_id = ? AND id = ?")
+            .get(request.sessionId, request.focusMessageId) as
+            | {
+                id: string;
+                created_at: string;
+              }
+            | undefined) ?? undefined)
+        : ((db
+            .prepare("SELECT id, created_at FROM messages WHERE session_id = ? AND source_id = ?")
+            .get(request.sessionId, request.focusSourceId) as
+            | {
+                id: string;
+                created_at: string;
+              }
+            | undefined) ?? undefined);
 
       if (focusTarget) {
         const focusRow = db

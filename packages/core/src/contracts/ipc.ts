@@ -122,6 +122,7 @@ export const ipcContractSchemas = {
       pageSize: z.number().int().positive().max(500).default(100),
       categories: z.array(z.string().min(1)).optional(),
       query: z.string().default(""),
+      focusMessageId: z.string().min(1).optional(),
       focusSourceId: z.string().min(1).optional(),
     }),
     response: z.object({

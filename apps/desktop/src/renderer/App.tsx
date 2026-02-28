@@ -88,6 +88,10 @@ export function App() {
   const [messageExpanded, setMessageExpanded] = useState<Record<string, boolean>>({});
   const [zoomPercent, setZoomPercent] = useState(100);
   const [focusSourceId, setFocusSourceId] = useState("");
+  const [pendingJumpTarget, setPendingJumpTarget] = useState<{
+    sourceId: string;
+    messageId: string;
+  } | null>(null);
   const [pendingSearchNavigation, setPendingSearchNavigation] = useState<{
     projectId: string;
     sessionId: string;
@@ -122,11 +126,13 @@ export function App() {
   const sessionQuery = useDebouncedValue(sessionQueryInput, 180);
   const searchQuery = useDebouncedValue(searchQueryInput, 220);
   const searchProjectQuery = useDebouncedValue(searchProjectQueryInput, 180);
+  const effectiveSessionQuery = sessionQueryInput.trim().length === 0 ? "" : sessionQuery;
   const logError = useCallback((context: string, error: unknown) => {
     console.error(`[cch] ${context}: ${toErrorMessage(error)}`);
   }, []);
 
   const focusedMessageRef = useRef<HTMLDivElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
   const sortedProjects = useMemo(() => {
     const next = [...projects];
     next.sort((left, right) => {
@@ -394,8 +400,14 @@ export function App() {
     }
 
     setSelectedSessionId(pendingSearchNavigation.sessionId);
+    setSessionQueryInput("");
+    setHistoryCategories([...CATEGORIES]);
     setSessionPage(0);
     setFocusSourceId(pendingSearchNavigation.sourceId);
+    setPendingJumpTarget({
+      sourceId: pendingSearchNavigation.sourceId,
+      messageId: "",
+    });
     setPendingSearchNavigation(null);
     setMainView("history");
   }, [pendingSearchNavigation, selectedProjectId, sortedSessions]);
@@ -407,21 +419,32 @@ export function App() {
     }
 
     let cancelled = false;
+    const isJumping = pendingJumpTarget !== null;
     const isAllHistoryCategoriesSelected = historyCategories.length === CATEGORIES.length;
+    const effectiveCategories = isJumping
+      ? undefined
+      : isAllHistoryCategoriesSelected
+        ? undefined
+        : historyCategories;
+    const effectiveQuery = isJumping ? "" : effectiveSessionQuery;
     void window.cch
       .invoke("sessions:getDetail", {
         sessionId: selectedSessionId,
         page: sessionPage,
         pageSize: PAGE_SIZE,
-        categories: isAllHistoryCategoriesSelected ? undefined : historyCategories,
-        query: sessionQuery,
-        focusSourceId: focusSourceId || undefined,
+        categories: effectiveCategories,
+        query: effectiveQuery,
+        focusMessageId: pendingJumpTarget?.messageId || undefined,
+        focusSourceId: pendingJumpTarget?.sourceId || undefined,
       })
       .then((response) => {
         if (cancelled) {
           return;
         }
         setSessionDetail(response);
+        if (pendingJumpTarget !== null) {
+          setPendingJumpTarget(null);
+        }
         if (response.page !== sessionPage) {
           setSessionPage(response.page);
         }
@@ -435,7 +458,14 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedSessionId, sessionPage, historyCategories, sessionQuery, focusSourceId, logError]);
+  }, [
+    selectedSessionId,
+    sessionPage,
+    historyCategories,
+    effectiveSessionQuery,
+    pendingJumpTarget,
+    logError,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -455,6 +485,16 @@ export function App() {
     }
     return sessionDetail.messages.find((message) => message.sourceId === focusSourceId)?.id ?? "";
   }, [focusSourceId, sessionDetail?.messages]);
+
+  useEffect(() => {
+    if (!selectedSessionId || sessionPage < 0) {
+      return;
+    }
+    if (!messageListRef.current) {
+      return;
+    }
+    messageListRef.current.scrollTop = 0;
+  }, [selectedSessionId, sessionPage]);
 
   useEffect(() => {
     if (!focusSourceId || !focusedMessageId || !focusedMessageRef.current) {
@@ -676,6 +716,14 @@ export function App() {
     [sessionMessages],
   );
 
+  const handleJumpToMessage = useCallback((messageId: string, sourceId: string) => {
+    setSessionQueryInput("");
+    setHistoryCategories([...CATEGORIES]);
+    setSessionPage(0);
+    setFocusSourceId(sourceId);
+    setPendingJumpTarget({ messageId, sourceId });
+  }, []);
+
   const beginResize =
     (pane: "project" | "session") => (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!isHistoryLayout) {
@@ -730,6 +778,8 @@ export function App() {
               onSelectProject={(projectId) => {
                 setPendingSearchNavigation(null);
                 setSelectedProjectId(projectId);
+                setFocusSourceId("");
+                setPendingJumpTarget(null);
               }}
               onOpenProjectLocation={() => {
                 void openInFileManager(sortedProjects, selectedProjectId).then((result) => {
@@ -752,6 +802,7 @@ export function App() {
                 setSelectedSessionId(sessionId);
                 setSessionPage(0);
                 setFocusSourceId("");
+                setPendingJumpTarget(null);
                 setMainView("history");
               }}
               onOpenSessionLocation={() => {
@@ -864,13 +915,13 @@ export function App() {
                 </div>
               </div>
 
-              <div className="message-list">
+              <div className="message-list" ref={messageListRef}>
                 {sessionDetail?.messages.length ? (
                   sessionDetail.messages.map((message) => (
                     <MessageCard
                       key={message.id}
                       message={message}
-                      query={sessionQuery}
+                      query={effectiveSessionQuery}
                       isFocused={!!focusSourceId && message.sourceId === focusSourceId}
                       isExpanded={
                         messageExpanded[message.id] ?? isMessageExpandedByDefault(message.category)
@@ -888,6 +939,7 @@ export function App() {
                           value === message.sourceId ? "" : message.sourceId,
                         )
                       }
+                      onJumpToMessage={() => handleJumpToMessage(message.id, message.sourceId)}
                       cardRef={
                         focusSourceId && message.sourceId === focusSourceId
                           ? focusedMessageRef

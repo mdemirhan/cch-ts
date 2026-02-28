@@ -83,6 +83,10 @@ export function ProjectPane({
               <span className={`provider-label provider-${project.provider}`}>
                 {prettyProvider(project.provider)}
               </span>{" "}
+              |{" "}
+              <span className="meta-count">
+                {project.sessionCount} {project.sessionCount === 1 ? "session" : "sessions"}
+              </span>{" "}
               | {formatDate(project.lastActivity)}
             </small>
           </button>

@@ -13,6 +13,7 @@ export function MessageCard({
   isExpanded,
   onToggleExpanded,
   onToggleFocused,
+  onJumpToMessage,
   cardRef,
 }: {
   message: SessionMessage;
@@ -21,6 +22,7 @@ export function MessageCard({
   isExpanded: boolean;
   onToggleExpanded: () => void;
   onToggleFocused: () => void;
+  onJumpToMessage?: () => void;
   cardRef?: Ref<HTMLDivElement> | null;
 }) {
   const typeLabel = formatMessageTypeLabel(message.category, message.content);
@@ -49,6 +51,13 @@ export function MessageCard({
             </small>
           </button>
         </div>
+        {onJumpToMessage ? (
+          <div className="message-header-actions">
+            <button type="button" className="message-jump-button" onClick={onJumpToMessage}>
+              Jump to Message
+            </button>
+          </div>
+        ) : null}
       </header>
       {isExpanded ? (
         <>

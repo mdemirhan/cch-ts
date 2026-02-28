@@ -24,6 +24,7 @@
   --category-tool-result: #0284c7;
   --category-thinking: #d97706;
   --category-system: #64748b;
+  --meta-count-blue: #436aab;
 }
 
 *,
@@ -441,7 +442,7 @@ select {
   color: var(--text-1);
   font-size: 14px;
   line-height: 1.25;
-  font-weight: 620;
+  font-weight: 520;
 }
 
 .item-title-row {
@@ -490,6 +491,11 @@ select {
   color: var(--text-3);
   font-size: 11px;
   line-height: 1.2;
+}
+
+.meta-count {
+  color: var(--meta-count-blue);
+  font-weight: 500;
 }
 
 .session-list {
@@ -699,6 +705,27 @@ select {
 
 .message-header {
   cursor: default;
+}
+
+.message-header-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.message-jump-button {
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  border-color: #9fb7df;
+  color: #1f4f99;
+  background: #eef4ff;
+}
+
+.message-jump-button:hover:not(:disabled) {
+  border-color: #7e9ccc;
+  background: #e3edff;
 }
 
 .message-select-button {

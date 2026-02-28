@@ -48,7 +48,8 @@ export function SessionPane({
           >
             <span className="session-title">{deriveSessionTitle(session)}</span>
             <small>
-              {session.messageCount} msgs | {formatDate(sessionActivityOf(session))}
+              <span className="meta-count">{session.messageCount} msgs</span> |{" "}
+              {formatDate(sessionActivityOf(session))}
             </small>
           </button>
         ))}

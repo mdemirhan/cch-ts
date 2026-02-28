@@ -148,9 +148,14 @@ describe("queryService", () => {
     }
     const focusSourceRow = db
       .prepare(
-        "SELECT source_id FROM messages WHERE session_id = ? AND content LIKE '%fixed%' LIMIT 1",
+        "SELECT id, source_id FROM messages WHERE session_id = ? AND content LIKE '%fixed%' LIMIT 1",
       )
-      .get(claudeSessionIdRow.id) as { source_id: string } | undefined;
+      .get(claudeSessionIdRow.id) as
+      | {
+          id: string;
+          source_id: string;
+        }
+      | undefined;
     db.close();
 
     const page = getSessionDetail(dbPath, {
@@ -159,6 +164,7 @@ describe("queryService", () => {
       pageSize: 2,
       categories: undefined,
       query: "",
+      focusMessageId: undefined,
       focusSourceId: undefined,
     });
     expect(page.session?.id).toBe(claudeSessionIdRow.id);
@@ -173,6 +179,7 @@ describe("queryService", () => {
       pageSize: 100,
       categories: ["tool_call"],
       query: "Read",
+      focusMessageId: undefined,
       focusSourceId: undefined,
     });
     expect(filtered.totalCount).toBe(1);
@@ -185,6 +192,7 @@ describe("queryService", () => {
       pageSize: 100,
       categories: [],
       query: "",
+      focusMessageId: undefined,
       focusSourceId: undefined,
     });
     expect(noCategoriesSelected.totalCount).toBe(0);
@@ -202,6 +210,7 @@ describe("queryService", () => {
       pageSize: 1,
       categories: undefined,
       query: "",
+      focusMessageId: focusSourceRow.id,
       focusSourceId: focusSourceRow.source_id,
     });
     expect(focused.focusIndex).not.toBeNull();
